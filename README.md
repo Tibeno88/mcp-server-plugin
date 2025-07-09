@@ -67,8 +67,9 @@ Example of using the token:
 The plugin provides built-in tools through the `DefaultMcpServer` class:
 
 - `getBuild`: Retrieve a specific build or the last build of a Jenkins job.
+- `getBuildLog`: Get the console log of a specific build. If the build number is not provided, it returns the log of the last build.
 - `getJob`: Get a Jenkins job by its full path.
-- `getAllJobs`: Get a list of all Jenkins jobs.
+- `getJobs`: Get a paginated list of Jenkins jobs.
 - `triggerBuild`: Trigger a build of a job.
 
 ### Extending MCP Capabilities
