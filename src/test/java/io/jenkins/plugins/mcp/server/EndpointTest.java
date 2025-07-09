@@ -318,4 +318,69 @@ class EndpointTest {
 
         jenkins.jenkins.save();
     }
+
+    @Test
+    void testMcpToolCallGetBuildLog(JenkinsRule jenkins) throws Exception {
+        WorkflowJob project = jenkins.createProject(WorkflowJob.class, "log-job");
+        project.setDefinition(new CpsFlowDefinition("echo 'hello from log'", true));
+        var build = jenkins.buildAndAssertSuccess(project);
+
+        var url = jenkins.getURL();
+        var baseUrl = url.toString();
+
+        var transport = HttpClientSseClientTransport.builder(baseUrl)
+                .sseEndpoint(MCP_SERVER_SSE)
+                .build();
+
+        try (var client = McpClient.sync(transport)
+                .requestTimeout(Duration.ofSeconds(500))
+                .capabilities(McpSchema.ClientCapabilities.builder().build())
+                .build()) {
+            client.initialize();
+            McpSchema.CallToolRequest request = new McpSchema.CallToolRequest(
+                    "getBuildLog",
+                    Map.of(
+                            "jobFullName", project.getFullName(),
+                            "buildNumber", build.getNumber()));
+
+            var response = client.callTool(request);
+            assertThat(response.isError()).isFalse();
+            assertThat(response.content()).hasSize(1);
+            assertThat(response.content()).first().isInstanceOfSatisfying(McpSchema.TextContent.class, textContent -> {
+                assertThat(textContent.type()).isEqualTo("text");
+                assertThat(textContent.text()).contains("hello from log");
+            });
+        }
+    }
+
+    @Test
+    void testMcpToolCallGetBuildLogLastBuild(JenkinsRule jenkins) throws Exception {
+        WorkflowJob project = jenkins.createProject(WorkflowJob.class, "log-job-last");
+        project.setDefinition(new CpsFlowDefinition("echo 'hello from last log'", true));
+        jenkins.buildAndAssertSuccess(project);
+
+        var url = jenkins.getURL();
+        var baseUrl = url.toString();
+
+        var transport = HttpClientSseClientTransport.builder(baseUrl)
+                .sseEndpoint(MCP_SERVER_SSE)
+                .build();
+
+        try (var client = McpClient.sync(transport)
+                .requestTimeout(Duration.ofSeconds(500))
+                .capabilities(McpSchema.ClientCapabilities.builder().build())
+                .build()) {
+            client.initialize();
+            McpSchema.CallToolRequest request =
+                    new McpSchema.CallToolRequest("getBuildLog", Map.of("jobFullName", project.getFullName()));
+
+            var response = client.callTool(request);
+            assertThat(response.isError()).isFalse();
+            assertThat(response.content()).hasSize(1);
+            assertThat(response.content()).first().isInstanceOfSatisfying(McpSchema.TextContent.class, textContent -> {
+                assertThat(textContent.type()).isEqualTo("text");
+                assertThat(textContent.text()).contains("hello from last log");
+            });
+        }
+    }
 }

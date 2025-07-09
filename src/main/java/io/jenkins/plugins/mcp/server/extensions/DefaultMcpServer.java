@@ -27,13 +27,20 @@
 package io.jenkins.plugins.mcp.server.extensions;
 
 import hudson.Extension;
-import hudson.model.*;
+import hudson.model.AbstractItem;
+import hudson.model.Item;
+import hudson.model.ItemGroup;
+import hudson.model.Job;
+import hudson.model.Run;
 import io.jenkins.plugins.mcp.server.McpServerExtension;
 import io.jenkins.plugins.mcp.server.annotation.Tool;
 import io.jenkins.plugins.mcp.server.annotation.ToolParam;
 import jakarta.annotation.Nullable;
+import java.io.BufferedReader;
+import java.io.IOException;
 import java.util.Comparator;
 import java.util.List;
+import java.util.stream.Collectors;
 import jenkins.model.Jenkins;
 import jenkins.model.ParameterizedJobMixIn;
 
@@ -118,6 +125,37 @@ public class DefaultMcpServer implements McpServerExtension {
                     .toList();
         } else {
             return List.of();
+        }
+    }
+
+    @Tool(
+            description =
+                    "Get the console log of a specific build. If build number is not provided, it returns the log of the last build.")
+    @Nullable
+    public String getBuildLog(
+            @ToolParam(description = "Job full name of the Jenkins job (e.g., 'folder/job-name')") String jobFullName,
+            @Nullable
+                    @ToolParam(
+                            description =
+                                    "The build number (optional, if not provided, returns the log of the last build).",
+                            required = false)
+                    Integer buildNumber)
+            throws IOException {
+        Job<?, ?> job = Jenkins.get().getItemByFullName(jobFullName, Job.class);
+        if (job == null) {
+            return null;
+        }
+        Run<?, ?> run;
+        if (buildNumber == null) {
+            run = job.getLastBuild();
+        } else {
+            run = job.getBuildByNumber(buildNumber);
+        }
+        if (run == null) {
+            return null;
+        }
+        try (BufferedReader reader = new BufferedReader(run.getLogReader())) {
+            return reader.lines().collect(Collectors.joining("\n"));
         }
     }
 }
